@@ -23,6 +23,7 @@ import org.apache.flink.util.FlinkRuntimeException;
 
 import org.apache.flink.shaded.guava18.com.google.common.util.concurrent.ThreadFactoryBuilder;
 
+import com.ververica.cdc.connectors.mysql.debezium.model.SourceRecordWithRowType;
 import com.ververica.cdc.connectors.mysql.debezium.task.MySqlBinlogSplitReadTask;
 import com.ververica.cdc.connectors.mysql.debezium.task.context.StatefulTaskContext;
 import com.ververica.cdc.connectors.mysql.source.offset.BinlogOffset;
@@ -38,6 +39,7 @@ import io.debezium.pipeline.DataChangeEvent;
 import io.debezium.pipeline.source.spi.ChangeEventSource;
 import io.debezium.relational.TableId;
 import io.debezium.relational.Tables;
+import io.debezium.relational.history.TableChanges;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,6 +55,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
+import static com.ververica.cdc.connectors.mysql.source.utils.ChunkUtils.getSplitType;
 import static com.ververica.cdc.connectors.mysql.source.utils.RecordUtils.getBinlogPosition;
 import static com.ververica.cdc.connectors.mysql.source.utils.RecordUtils.getSplitKey;
 import static com.ververica.cdc.connectors.mysql.source.utils.RecordUtils.getTableId;
@@ -144,11 +147,24 @@ public class BinlogSplitReader implements DebeziumReader<SourceRecord, MySqlSpli
     public Iterator<SourceRecord> pollSplitRecords() throws InterruptedException {
         checkReadException();
         final List<SourceRecord> sourceRecords = new ArrayList<>();
+        Map<TableId, TableChanges.TableChange> tableSchemas =
+                this.currentBinlogSplit.getTableSchemas();
+
         if (currentTaskRunning) {
             List<DataChangeEvent> batch = queue.poll();
             for (DataChangeEvent event : batch) {
                 if (shouldEmit(event.getRecord())) {
-                    sourceRecords.add(event.getRecord());
+                    SourceRecord sourceRecord = event.getRecord();
+                    SourceRecordWithRowType sourceRecordWithSchema =
+                            new SourceRecordWithRowType(sourceRecord);
+
+                    if (isDataChangeRecord(event.getRecord())) {
+                        TableId tableId = getTableId(sourceRecord);
+                        TableChanges.TableChange tableChange = tableSchemas.get(tableId);
+                        RowType splitType = getSplitType(tableChange.getTable());
+                        sourceRecordWithSchema.setRowType(splitType);
+                    }
+                    sourceRecords.add(sourceRecordWithSchema);
                 }
             }
         }

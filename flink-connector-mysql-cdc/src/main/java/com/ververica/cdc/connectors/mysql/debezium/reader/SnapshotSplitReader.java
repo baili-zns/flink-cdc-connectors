@@ -18,11 +18,13 @@
 
 package com.ververica.cdc.connectors.mysql.debezium.reader;
 
+import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.util.FlinkRuntimeException;
 
 import org.apache.flink.shaded.guava18.com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import com.ververica.cdc.connectors.mysql.debezium.dispatcher.SignalEventDispatcher;
+import com.ververica.cdc.connectors.mysql.debezium.model.SourceRecordWithRowType;
 import com.ververica.cdc.connectors.mysql.debezium.task.MySqlBinlogSplitReadTask;
 import com.ververica.cdc.connectors.mysql.debezium.task.MySqlSnapshotSplitReadTask;
 import com.ververica.cdc.connectors.mysql.debezium.task.context.StatefulTaskContext;
@@ -39,6 +41,8 @@ import io.debezium.connector.mysql.MySqlStreamingChangeEventSourceMetrics;
 import io.debezium.pipeline.DataChangeEvent;
 import io.debezium.pipeline.source.spi.ChangeEventSource;
 import io.debezium.pipeline.spi.SnapshotResult;
+import io.debezium.relational.TableId;
+import io.debezium.relational.history.TableChanges;
 import io.debezium.util.SchemaNameAdjuster;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.slf4j.Logger;
@@ -49,11 +53,14 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static com.ververica.cdc.connectors.mysql.source.utils.ChunkUtils.getSplitType;
+import static com.ververica.cdc.connectors.mysql.source.utils.RecordUtils.getTableId;
 import static com.ververica.cdc.connectors.mysql.source.utils.RecordUtils.normalizedSplitRecords;
 
 /**
@@ -226,11 +233,21 @@ public class SnapshotSplitReader implements DebeziumReader<SourceRecord, MySqlSp
             // data output: [low watermark event][normalized events][high watermark event]
             boolean reachBinlogEnd = false;
             final List<SourceRecord> sourceRecords = new ArrayList<>();
+            Map<TableId, TableChanges.TableChange> tableSchemas =
+                    this.currentSnapshotSplit.getTableSchemas();
             while (!reachBinlogEnd) {
                 List<DataChangeEvent> batch = queue.poll();
                 for (DataChangeEvent event : batch) {
-                    sourceRecords.add(event.getRecord());
-                    if (RecordUtils.isEndWatermarkEvent(event.getRecord())) {
+                    SourceRecord sourceRecord = event.getRecord();
+                    TableId tableId = getTableId(sourceRecord);
+                    TableChanges.TableChange tableChange = tableSchemas.get(tableId);
+                    RowType splitType = getSplitType(tableChange.getTable());
+
+                    SourceRecordWithRowType sourceRecordWithSchema =
+                            new SourceRecordWithRowType(sourceRecord, splitType);
+
+                    sourceRecords.add(sourceRecordWithSchema);
+                    if (RecordUtils.isEndWatermarkEvent(sourceRecord)) {
                         reachBinlogEnd = true;
                         break;
                     }

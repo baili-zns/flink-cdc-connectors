@@ -18,6 +18,7 @@
 
 package com.ververica.cdc.connectors.mysql.source.utils;
 
+import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.ValidationException;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.util.Preconditions;
@@ -26,15 +27,19 @@ import com.ververica.cdc.connectors.mysql.schema.MySqlTypeUtils;
 import io.debezium.relational.Column;
 import io.debezium.relational.Table;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.apache.flink.table.api.DataTypes.FIELD;
 import static org.apache.flink.table.api.DataTypes.ROW;
 
-/** Utilities to split chunks of table. */
+/**
+ * Utilities to split chunks of table.
+ */
 public class ChunkUtils {
 
-    private ChunkUtils() {}
+    private ChunkUtils() {
+    }
 
     public static RowType getSplitType(Table table) {
         List<Column> primaryKeys = table.primaryKeyColumns();
@@ -48,6 +53,14 @@ public class ChunkUtils {
 
         // use first field in primary key as the split key
         return getSplitType(primaryKeys.get(0));
+    }
+
+    public static RowType getRowTypeOfTable(Table table) {
+        List<DataTypes.Field> fields = new ArrayList<>();
+        table.columns().forEach(column ->
+                fields.add(FIELD(column.name(), MySqlTypeUtils.fromDbzColumn(column)))
+        );
+        return (RowType) ROW(fields.toArray(new DataTypes.Field[0])).getLogicalType();
     }
 
     public static RowType getSplitType(Column splitColumn) {
@@ -70,7 +83,9 @@ public class ChunkUtils {
         return primaryKeys.get(0);
     }
 
-    /** Returns next meta group id according to received meta number and meta group size. */
+    /**
+     * Returns next meta group id according to received meta number and meta group size.
+     */
     public static int getNextMetaGroupId(int receivedMetaNum, int metaGroupSize) {
         Preconditions.checkState(metaGroupSize > 0);
         return receivedMetaNum % metaGroupSize == 0

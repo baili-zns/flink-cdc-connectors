@@ -4,6 +4,8 @@ import org.apache.flink.table.types.logical.RowType;
 
 import org.apache.kafka.connect.source.SourceRecord;
 
+import java.util.List;
+
 /**
  * @program: flink-cdc-connectors
  * @description: SourceRecordWithRowType
@@ -12,6 +14,16 @@ import org.apache.kafka.connect.source.SourceRecord;
  */
 public class SourceRecordWithRowType extends SourceRecord {
     private RowType rowType;
+
+    private List<String> primaryKeyColumnNames;
+
+    public List<String> getPrimaryKeyColumnNames() {
+        return primaryKeyColumnNames;
+    }
+
+    public void setPrimaryKeyColumnNames(List<String> primaryKeyColumnNames) {
+        this.primaryKeyColumnNames = primaryKeyColumnNames;
+    }
 
     public RowType getRowType() {
         return rowType;

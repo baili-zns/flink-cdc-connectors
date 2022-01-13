@@ -18,6 +18,9 @@
 
 package com.ververica.cdc.connectors.mysql.source.utils;
 
+import com.ververica.cdc.connectors.mysql.debezium.model.SourceRecordWithRowType;
+import io.debezium.relational.Table;
+import io.debezium.relational.history.TableChanges;
 import org.apache.flink.table.types.logical.RowType;
 
 import com.ververica.cdc.connectors.mysql.debezium.dispatcher.SignalEventDispatcher.WatermarkKind;
@@ -50,20 +53,27 @@ import static com.ververica.cdc.connectors.mysql.debezium.dispatcher.EventDispat
 import static com.ververica.cdc.connectors.mysql.debezium.dispatcher.SignalEventDispatcher.SIGNAL_EVENT_VALUE_SCHEMA_NAME;
 import static com.ververica.cdc.connectors.mysql.debezium.dispatcher.SignalEventDispatcher.SPLIT_ID_KEY;
 import static com.ververica.cdc.connectors.mysql.debezium.dispatcher.SignalEventDispatcher.WATERMARK_KIND;
+import static com.ververica.cdc.connectors.mysql.source.utils.ChunkUtils.getRowTypeOfTable;
+import static com.ververica.cdc.connectors.mysql.source.utils.ChunkUtils.getSplitType;
 import static io.debezium.connector.AbstractSourceInfo.DATABASE_NAME_KEY;
 import static io.debezium.connector.AbstractSourceInfo.TABLE_NAME_KEY;
 import static org.apache.flink.util.Preconditions.checkState;
 
-/** Utility class to deal record. */
+/**
+ * Utility class to deal record.
+ */
 public class RecordUtils {
 
-    private RecordUtils() {}
+    private RecordUtils() {
+    }
 
     public static final String SCHEMA_CHANGE_EVENT_KEY_NAME =
             "io.debezium.connector.mysql.SchemaChangeKey";
     private static final DocumentReader DOCUMENT_READER = DocumentReader.defaultReader();
 
-    /** Converts a {@link ResultSet} row to an array of Objects. */
+    /**
+     * Converts a {@link ResultSet} row to an array of Objects.
+     */
     public static Object[] rowToArray(ResultSet rs, int size) throws SQLException {
         final Object[] row = new Object[size];
         for (int i = 0; i < size; i++) {
@@ -274,7 +284,7 @@ public class RecordUtils {
      * Return the finished snapshot split information.
      *
      * @return [splitId, splitStart, splitEnd, highWatermark], the information will be used to
-     *     filter binlog events when read binlog of table.
+     * filter binlog events when read binlog of table.
      */
     public static FinishedSnapshotSplitInfo getSnapshotSplitInfo(
             MySqlSnapshotSplit split, SourceRecord highWatermark) {
@@ -288,7 +298,9 @@ public class RecordUtils {
                 getBinlogPosition(highWatermark.sourceOffset()));
     }
 
-    /** Returns the start offset of the binlog split. */
+    /**
+     * Returns the start offset of the binlog split.
+     */
     public static BinlogOffset getStartingOffsetOfBinlogSplit(
             List<FinishedSnapshotSplitInfo> finishedSnapshotSplits) {
         BinlogOffset startOffset =
@@ -323,7 +335,7 @@ public class RecordUtils {
         // the split key field contains single field now
         String splitFieldName = nameAdjuster.adjust(splitBoundaryType.getFieldNames().get(0));
         Struct key = (Struct) dataRecord.key();
-        return new Object[] {key.get(splitFieldName)};
+        return new Object[]{key.get(splitFieldName)};
     }
 
     public static BinlogOffset getBinlogPosition(SourceRecord dataRecord) {
@@ -339,7 +351,9 @@ public class RecordUtils {
         return new BinlogOffset(offsetStrMap);
     }
 
-    /** Returns the specific key contains in the split key range or not. */
+    /**
+     * Returns the specific key contains in the split key range or not.
+     */
     public static boolean splitKeyRangeContains(
             Object[] key, Object[] splitKeyStart, Object[] splitKeyEnd) {
         // for all range
@@ -373,7 +387,7 @@ public class RecordUtils {
             }
             return Arrays.stream(lowerBoundRes).anyMatch(value -> value >= 0)
                     && (Arrays.stream(upperBoundRes).anyMatch(value -> value < 0)
-                            && Arrays.stream(upperBoundRes).allMatch(value -> value <= 0));
+                    && Arrays.stream(upperBoundRes).allMatch(value -> value <= 0));
         }
     }
 
@@ -398,5 +412,19 @@ public class RecordUtils {
             return Optional.of(WatermarkKind.valueOf(value.getString(WATERMARK_KIND)));
         }
         return Optional.empty();
+    }
+
+    public static SourceRecordWithRowType getSourceRecordWithRowType(SourceRecord sourceRecord, Map<TableId, TableChanges.TableChange> tableSchemas) {
+        SourceRecordWithRowType sourceRecordWithSchema =
+                new SourceRecordWithRowType(sourceRecord);
+
+        if (isDataChangeRecord(sourceRecord)) {
+            TableId tableId = getTableId(sourceRecord);
+            TableChanges.TableChange tableChange = tableSchemas.get(tableId);
+            Table table = tableChange.getTable();
+            sourceRecordWithSchema.setRowType(getRowTypeOfTable(table));
+            sourceRecordWithSchema.setPrimaryKeyColumnNames(table.primaryKeyColumnNames());
+        }
+        return sourceRecordWithSchema;
     }
 }

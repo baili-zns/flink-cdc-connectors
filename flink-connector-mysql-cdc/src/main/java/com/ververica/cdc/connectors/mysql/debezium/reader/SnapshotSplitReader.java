@@ -60,8 +60,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static com.ververica.cdc.connectors.mysql.source.utils.ChunkUtils.getSplitType;
-import static com.ververica.cdc.connectors.mysql.source.utils.RecordUtils.getTableId;
-import static com.ververica.cdc.connectors.mysql.source.utils.RecordUtils.normalizedSplitRecords;
+import static com.ververica.cdc.connectors.mysql.source.utils.RecordUtils.*;
 
 /**
  * A snapshot reader that reads data from Table in split level, the split is assigned by primary key
@@ -238,16 +237,8 @@ public class SnapshotSplitReader implements DebeziumReader<SourceRecord, MySqlSp
             while (!reachBinlogEnd) {
                 List<DataChangeEvent> batch = queue.poll();
                 for (DataChangeEvent event : batch) {
-                    SourceRecord sourceRecord = event.getRecord();
-                    TableId tableId = getTableId(sourceRecord);
-                    TableChanges.TableChange tableChange = tableSchemas.get(tableId);
-                    RowType splitType = getSplitType(tableChange.getTable());
-
-                    SourceRecordWithRowType sourceRecordWithSchema =
-                            new SourceRecordWithRowType(sourceRecord, splitType);
-
-                    sourceRecords.add(sourceRecordWithSchema);
-                    if (RecordUtils.isEndWatermarkEvent(sourceRecord)) {
+                    sourceRecords.add(getSourceRecordWithRowType(event.getRecord(), tableSchemas));
+                    if (RecordUtils.isEndWatermarkEvent(event.getRecord())) {
                         reachBinlogEnd = true;
                         break;
                     }

@@ -33,7 +33,9 @@ import java.util.Properties;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** A MySql Source configuration which is used by {@link MySqlSource}. */
+/**
+ * A MySql Source configuration which is used by {@link MySqlSource}.
+ */
 public class MySqlSourceConfig implements Serializable {
     private static final long serialVersionUID = 1L;
 
@@ -43,7 +45,8 @@ public class MySqlSourceConfig implements Serializable {
     private final String password;
     private final List<String> databaseList;
     private final List<String> tableList;
-    @Nullable private final ServerIdRange serverIdRange;
+    @Nullable
+    private final ServerIdRange serverIdRange;
     private final StartupOptions startupOptions;
     private final int splitSize;
     private final int splitMetaGroupSize;
@@ -55,6 +58,7 @@ public class MySqlSourceConfig implements Serializable {
     private final double distributionFactorUpper;
     private final double distributionFactorLower;
     private final boolean includeSchemaChanges;
+    private final boolean generateSchemaRowTypes;
 
     // --------------------------------------------------------------------------------------------
     // Debezium Configurations
@@ -83,6 +87,33 @@ public class MySqlSourceConfig implements Serializable {
             double distributionFactorLower,
             boolean includeSchemaChanges,
             Properties dbzProperties) {
+
+
+        this(hostname, port, username, password, databaseList, tableList, serverIdRange, startupOptions, splitSize, splitMetaGroupSize, fetchSize, serverTimeZone, connectTimeout, connectMaxRetries, connectionPoolSize, distributionFactorUpper, distributionFactorLower, includeSchemaChanges, false, dbzProperties);
+
+    }
+
+    MySqlSourceConfig(
+            String hostname,
+            int port,
+            String username,
+            String password,
+            List<String> databaseList,
+            List<String> tableList,
+            @Nullable ServerIdRange serverIdRange,
+            StartupOptions startupOptions,
+            int splitSize,
+            int splitMetaGroupSize,
+            int fetchSize,
+            String serverTimeZone,
+            Duration connectTimeout,
+            int connectMaxRetries,
+            int connectionPoolSize,
+            double distributionFactorUpper,
+            double distributionFactorLower,
+            boolean includeSchemaChanges,
+            boolean generateSchemaRowTypes,
+            Properties dbzProperties) {
         this.hostname = checkNotNull(hostname);
         this.port = port;
         this.username = checkNotNull(username);
@@ -104,6 +135,7 @@ public class MySqlSourceConfig implements Serializable {
         this.dbzProperties = checkNotNull(dbzProperties);
         this.dbzConfiguration = Configuration.from(dbzProperties);
         this.dbzMySqlConfig = new MySqlConnectorConfig(dbzConfiguration);
+        this.generateSchemaRowTypes = generateSchemaRowTypes;
     }
 
     public String getHostname() {
@@ -177,6 +209,10 @@ public class MySqlSourceConfig implements Serializable {
 
     public boolean isIncludeSchemaChanges() {
         return includeSchemaChanges;
+    }
+
+    public boolean generateSchemaRowTypes() {
+        return generateSchemaRowTypes;
     }
 
     public Properties getDbzProperties() {

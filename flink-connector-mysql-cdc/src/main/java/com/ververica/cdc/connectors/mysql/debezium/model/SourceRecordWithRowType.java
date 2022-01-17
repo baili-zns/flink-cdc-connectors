@@ -47,6 +47,21 @@ public class SourceRecordWithRowType extends SourceRecord {
                 sourceRecord.headers());
     }
 
+    public SourceRecordWithRowType() {
+        super(
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+    }
+
     public SourceRecordWithRowType(SourceRecord sourceRecord, RowType rowType) {
         this(sourceRecord);
         this.rowType = rowType;

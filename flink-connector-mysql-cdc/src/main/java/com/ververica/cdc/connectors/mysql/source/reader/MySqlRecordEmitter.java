@@ -18,6 +18,7 @@
 
 package com.ververica.cdc.connectors.mysql.source.reader;
 
+import com.ververica.cdc.connectors.mysql.source.split.MySqlSnapshotSplit;
 import org.apache.flink.api.connector.source.SourceOutput;
 import org.apache.flink.connector.base.source.reader.RecordEmitter;
 import org.apache.flink.runtime.operators.shipping.OutputCollector;
@@ -35,15 +36,7 @@ import org.apache.kafka.connect.source.SourceRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static com.ververica.cdc.connectors.mysql.source.utils.RecordUtils.getBinlogPosition;
-import static com.ververica.cdc.connectors.mysql.source.utils.RecordUtils.getFetchTimestamp;
-import static com.ververica.cdc.connectors.mysql.source.utils.RecordUtils.getHistoryRecord;
-import static com.ververica.cdc.connectors.mysql.source.utils.RecordUtils.getMessageTimestamp;
-import static com.ververica.cdc.connectors.mysql.source.utils.RecordUtils.getWatermark;
-import static com.ververica.cdc.connectors.mysql.source.utils.RecordUtils.isDataChangeRecord;
-import static com.ververica.cdc.connectors.mysql.source.utils.RecordUtils.isHighWatermarkEvent;
-import static com.ververica.cdc.connectors.mysql.source.utils.RecordUtils.isSchemaChangeEvent;
-import static com.ververica.cdc.connectors.mysql.source.utils.RecordUtils.isWatermarkEvent;
+import static com.ververica.cdc.connectors.mysql.source.utils.RecordUtils.*;
 
 /**
  * The {@link RecordEmitter} implementation for {@link MySqlSourceReader}.
@@ -61,16 +54,26 @@ public final class MySqlRecordEmitter<T>
     private final DebeziumDeserializationSchema<T> debeziumDeserializationSchema;
     private final MySqlSourceReaderMetrics sourceReaderMetrics;
     private final boolean includeSchemaChanges;
+    private final boolean generateSchemaRowTypes;
     private final OutputCollector<T> outputCollector;
 
     public MySqlRecordEmitter(
             DebeziumDeserializationSchema<T> debeziumDeserializationSchema,
             MySqlSourceReaderMetrics sourceReaderMetrics,
             boolean includeSchemaChanges) {
+        this(debeziumDeserializationSchema, sourceReaderMetrics, includeSchemaChanges, false);
+    }
+
+    public MySqlRecordEmitter(
+            DebeziumDeserializationSchema<T> debeziumDeserializationSchema,
+            MySqlSourceReaderMetrics sourceReaderMetrics,
+            boolean includeSchemaChanges,
+            boolean generateSchemaRowTypes) {
         this.debeziumDeserializationSchema = debeziumDeserializationSchema;
         this.sourceReaderMetrics = sourceReaderMetrics;
         this.includeSchemaChanges = includeSchemaChanges;
         this.outputCollector = new OutputCollector<>();
+        this.generateSchemaRowTypes = generateSchemaRowTypes;
     }
 
     @Override
@@ -81,14 +84,17 @@ public final class MySqlRecordEmitter<T>
             if (isHighWatermarkEvent(element) && splitState.isSnapshotSplitState()) {
                 splitState.asSnapshotSplitState().setHighWatermark(watermark);
             }
-        } else if (isSchemaChangeEvent(element)) {
-//        else if (isSchemaChangeEvent(element) && splitState.isBinlogSplitState()) {
+        } //else if (isSchemaChangeEvent(element)) {
+        else if (isSchemaChangeEvent(element) && splitState.isBinlogSplitState()) {
             HistoryRecord historyRecord = getHistoryRecord(element);
             Array tableChanges =
                     historyRecord.document().getArray(HistoryRecord.Fields.TABLE_CHANGES);
             TableChanges changes = TABLE_CHANGE_SERIALIZER.deserialize(tableChanges, true);
             for (TableChanges.TableChange tableChange : changes) {
                 splitState.asBinlogSplitState().recordSchema(tableChange.getId(), tableChange);
+                if (generateSchemaRowTypes) {
+                    emitElement(getSourceRecordWithRowType(tableChange), output);
+                }
             }
             if (includeSchemaChanges) {
                 emitElement(element, output);
@@ -97,6 +103,13 @@ public final class MySqlRecordEmitter<T>
             if (splitState.isBinlogSplitState()) {
                 BinlogOffset position = getBinlogPosition(element);
                 splitState.asBinlogSplitState().setStartingOffset(position);
+            } else if (generateSchemaRowTypes && splitState.isSnapshotSplitState()) {
+                if (Boolean.FALSE.equals(splitState.asSnapshotSplitState().getSchemaRecorded()) && Boolean.TRUE.equals(splitState.asSnapshotSplitState().getFirstSplit())) {
+                    MySqlSnapshotSplit mySqlSnapshotSplit = splitState.toMySqlSplit().asSnapshotSplit();
+                    splitState.asSnapshotSplitState().setSchemaRecorded(true);
+                    TableChanges.TableChange tableChange = mySqlSnapshotSplit.getTableSchemas().get(mySqlSnapshotSplit.getTableId());
+                    emitElement(getSourceRecordWithRowType(tableChange), output);
+                }
             }
             reportMetrics(element);
             emitElement(element, output);

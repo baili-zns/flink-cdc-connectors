@@ -190,6 +190,12 @@ public class MySqlSourceBuilder<T> {
         return this;
     }
 
+    /** Whether the {@link MySqlSource} should output the schema changes or not. */
+    public MySqlSourceBuilder<T> generateSchemaRowTypes(boolean generateSchemaRowTypes) {
+        this.configFactory.generateSchemaRowTypes(generateSchemaRowTypes);
+        return this;
+    }
+
     /** Specifies the startup options. */
     public MySqlSourceBuilder<T> startupOptions(StartupOptions startupOptions) {
         this.configFactory.startupOptions(startupOptions);

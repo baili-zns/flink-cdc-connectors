@@ -26,10 +26,32 @@ import javax.annotation.Nullable;
 public class MySqlSnapshotSplitState extends MySqlSplitState {
 
     @Nullable private BinlogOffset highWatermark;
+    @Nullable private Boolean isFirstSplit;
+    @Nullable private Boolean isSchemaRecorded;
+
+    @Nullable
+    public Boolean getFirstSplit() {
+        return isFirstSplit;
+    }
+
+    public void setFirstSplit(@Nullable Boolean firstSplit) {
+        isFirstSplit = firstSplit;
+    }
+
+    @Nullable
+    public Boolean getSchemaRecorded() {
+        return isSchemaRecorded;
+    }
+
+    public void setSchemaRecorded(@Nullable Boolean schemaRecorded) {
+        isSchemaRecorded = schemaRecorded;
+    }
 
     public MySqlSnapshotSplitState(MySqlSnapshotSplit split) {
         super(split);
         this.highWatermark = split.getHighWatermark();
+        this.isFirstSplit = split.getSplitStart() == null;
+        this.isSchemaRecorded = false;
     }
 
     @Nullable

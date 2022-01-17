@@ -42,7 +42,9 @@ import static com.ververica.cdc.connectors.mysql.source.config.MySqlSourceOption
 import static com.ververica.cdc.connectors.mysql.source.config.MySqlSourceOptions.SPLIT_KEY_EVEN_DISTRIBUTION_FACTOR_UPPER_BOUND;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/** A factory to construct {@link MySqlSourceConfig}. */
+/**
+ * A factory to construct {@link MySqlSourceConfig}.
+ */
 @Internal
 public class MySqlSourceConfigFactory implements Serializable {
 
@@ -68,6 +70,7 @@ public class MySqlSourceConfigFactory implements Serializable {
     private double distributionFactorLower =
             SPLIT_KEY_EVEN_DISTRIBUTION_FACTOR_LOWER_BOUND.defaultValue();
     private boolean includeSchemaChanges = false;
+    private boolean generateSchemaRowTypes = false;
     private Properties dbzProperties;
 
     public MySqlSourceConfigFactory hostname(String hostname) {
@@ -75,7 +78,9 @@ public class MySqlSourceConfigFactory implements Serializable {
         return this;
     }
 
-    /** Integer port number of the MySQL database server. */
+    /**
+     * Integer port number of the MySQL database server.
+     */
     public MySqlSourceConfigFactory port(int port) {
         this.port = port;
         return this;
@@ -102,13 +107,17 @@ public class MySqlSourceConfigFactory implements Serializable {
         return this;
     }
 
-    /** Name of the MySQL database to use when connecting to the MySQL database server. */
+    /**
+     * Name of the MySQL database to use when connecting to the MySQL database server.
+     */
     public MySqlSourceConfigFactory username(String username) {
         this.username = username;
         return this;
     }
 
-    /** Password to use when connecting to the MySQL database server. */
+    /**
+     * Password to use when connecting to the MySQL database server.
+     */
     public MySqlSourceConfigFactory password(String password) {
         this.password = password;
         return this;
@@ -174,7 +183,9 @@ public class MySqlSourceConfigFactory implements Serializable {
         return this;
     }
 
-    /** The maximum fetch size for per poll when read table snapshot. */
+    /**
+     * The maximum fetch size for per poll when read table snapshot.
+     */
     public MySqlSourceConfigFactory fetchSize(int fetchSize) {
         this.fetchSize = fetchSize;
         return this;
@@ -189,25 +200,41 @@ public class MySqlSourceConfigFactory implements Serializable {
         return this;
     }
 
-    /** The connection pool size. */
+    /**
+     * The connection pool size.
+     */
     public MySqlSourceConfigFactory connectionPoolSize(int connectionPoolSize) {
         this.connectionPoolSize = connectionPoolSize;
         return this;
     }
 
-    /** The max retry times to get connection. */
+    /**
+     * The max retry times to get connection.
+     */
     public MySqlSourceConfigFactory connectMaxRetries(int connectMaxRetries) {
         this.connectMaxRetries = connectMaxRetries;
         return this;
     }
 
-    /** Whether the {@link MySqlSource} should output the schema changes or not. */
+    /**
+     * Whether the {@link MySqlSource} should output the schema changes or not.
+     */
     public MySqlSourceConfigFactory includeSchemaChanges(boolean includeSchemaChanges) {
         this.includeSchemaChanges = includeSchemaChanges;
         return this;
     }
 
-    /** Specifies the startup options. */
+    /**
+     * Whether the {@link MySqlSource} should output the schema changes or not.
+     */
+    public MySqlSourceConfigFactory generateSchemaRowTypes(boolean generateSchemaRowTypes) {
+        this.generateSchemaRowTypes = generateSchemaRowTypes;
+        return this;
+    }
+
+    /**
+     * Specifies the startup options.
+     */
     public MySqlSourceConfigFactory startupOptions(StartupOptions startupOptions) {
         switch (startupOptions.startupMode) {
             case INITIAL:
@@ -221,13 +248,17 @@ public class MySqlSourceConfigFactory implements Serializable {
         return this;
     }
 
-    /** The Debezium MySQL connector properties. For example, "snapshot.mode". */
+    /**
+     * The Debezium MySQL connector properties. For example, "snapshot.mode".
+     */
     public MySqlSourceConfigFactory debeziumProperties(Properties properties) {
         this.dbzProperties = properties;
         return this;
     }
 
-    /** Creates a new {@link MySqlSourceConfig} for the given subtask {@code subtaskId}. */
+    /**
+     * Creates a new {@link MySqlSourceConfig} for the given subtask {@code subtaskId}.
+     */
     public MySqlSourceConfig createConfig(int subtaskId) {
         Properties props = new Properties();
         // hard code server name, because we don't need to distinguish it, docs:
@@ -303,6 +334,7 @@ public class MySqlSourceConfigFactory implements Serializable {
                 distributionFactorUpper,
                 distributionFactorLower,
                 includeSchemaChanges,
+                generateSchemaRowTypes,
                 props);
     }
 }

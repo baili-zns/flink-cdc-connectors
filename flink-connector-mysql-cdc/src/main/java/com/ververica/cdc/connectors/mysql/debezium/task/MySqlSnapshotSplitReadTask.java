@@ -156,15 +156,15 @@ public class MySqlSnapshotSplitReadTask extends AbstractSnapshotChangeEventSourc
         signalEventDispatcher.dispatchWatermarkEvent(
                 snapshotSplit, lowWatermark, SignalEventDispatcher.WatermarkKind.LOW);
 
-        if (snapshotSplit.isSnapshotSplit() && snapshotSplit.getSplitStart() == null && connectorConfig.includeSchemaChangeRecords()) {
-            LOG.info(
-                    "Snapshot step 1.1 - initial schemas for table {}",
-                    snapshotSplit.getTableId().table());
-            determineCapturedTables(ctx);
-            createSchemaEventsForTables(ctx, ctx.capturedSchemaTables, true);
-            createSchemaChangeEventsForTables(context, ctx, snapshottingTask);
-
-        }
+//        if (snapshotSplit.isSnapshotSplit() && snapshotSplit.getSplitStart() == null && connectorConfig.includeSchemaChangeRecords()) {
+//            LOG.info(
+//                    "Snapshot step 1.1 - initial schemas for table {}",
+//                    snapshotSplit.getTableId().table());
+//            determineCapturedTables(ctx);
+//            createSchemaEventsForTables(ctx, ctx.capturedSchemaTables, true);
+//            createSchemaChangeEventsForTables(context, ctx, snapshottingTask);
+//
+//        }
 
         LOG.info("Snapshot step 2 - Snapshotting data");
         createDataEvents(ctx, snapshotSplit.getTableId());

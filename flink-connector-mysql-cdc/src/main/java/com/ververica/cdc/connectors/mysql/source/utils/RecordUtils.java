@@ -439,4 +439,13 @@ public class RecordUtils {
         }
         return sourceRecordWithSchema;
     }
+
+    public static SourceRecordWithRowType getSourceRecordWithRowType(TableChanges.TableChange tableSchema) {
+        SourceRecordWithRowType sourceRecordWithSchema =
+                new SourceRecordWithRowType();
+        Table table = tableSchema.getTable();
+        sourceRecordWithSchema.setRowType(getRowTypeOfTable(table));
+        sourceRecordWithSchema.setPrimaryKeyColumnNames(table.primaryKeyColumnNames());
+        return sourceRecordWithSchema;
+    }
 }

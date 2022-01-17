@@ -151,7 +151,8 @@ public class BinlogSplitReader implements DebeziumReader<SourceRecord, MySqlSpli
             List<DataChangeEvent> batch = queue.poll();
             for (DataChangeEvent event : batch) {
                 if (shouldEmit(event.getRecord())) {
-                    sourceRecords.add(getSourceRecordWithRowType(event.getRecord(), tableSchemas));
+                    TableId tableId = getTableId(event.getRecord());
+                    sourceRecords.add(getSourceRecordWithRowType(event.getRecord(), tableSchemas.get(tableId)));
                 }
             }
         }

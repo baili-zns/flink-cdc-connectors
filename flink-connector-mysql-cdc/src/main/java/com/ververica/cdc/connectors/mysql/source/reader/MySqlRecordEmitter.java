@@ -20,6 +20,7 @@ package com.ververica.cdc.connectors.mysql.source.reader;
 
 import org.apache.flink.api.connector.source.SourceOutput;
 import org.apache.flink.connector.base.source.reader.RecordEmitter;
+import org.apache.flink.runtime.operators.shipping.OutputCollector;
 import org.apache.flink.util.Collector;
 
 import com.ververica.cdc.connectors.mysql.source.metrics.MySqlSourceReaderMetrics;
@@ -80,7 +81,8 @@ public final class MySqlRecordEmitter<T>
             if (isHighWatermarkEvent(element) && splitState.isSnapshotSplitState()) {
                 splitState.asSnapshotSplitState().setHighWatermark(watermark);
             }
-        } else if (isSchemaChangeEvent(element) && splitState.isBinlogSplitState()) {
+        } else if (isSchemaChangeEvent(element)) {
+//        else if (isSchemaChangeEvent(element) && splitState.isBinlogSplitState()) {
             HistoryRecord historyRecord = getHistoryRecord(element);
             Array tableChanges =
                     historyRecord.document().getArray(HistoryRecord.Fields.TABLE_CHANGES);

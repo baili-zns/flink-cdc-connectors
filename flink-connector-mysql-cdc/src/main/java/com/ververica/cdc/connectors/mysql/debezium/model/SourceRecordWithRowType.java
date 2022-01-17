@@ -48,17 +48,7 @@ public class SourceRecordWithRowType extends SourceRecord {
     }
 
     public SourceRecordWithRowType(SourceRecord sourceRecord, RowType rowType) {
-        super(
-                sourceRecord.sourcePartition(),
-                sourceRecord.sourceOffset(),
-                sourceRecord.topic(),
-                sourceRecord.kafkaPartition(),
-                sourceRecord.keySchema(),
-                sourceRecord.key(),
-                sourceRecord.valueSchema(),
-                sourceRecord.value(),
-                sourceRecord.timestamp(),
-                sourceRecord.headers());
+        this(sourceRecord);
         this.rowType = rowType;
     }
 

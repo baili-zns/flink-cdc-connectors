@@ -41,6 +41,7 @@ import io.debezium.relational.RelationalSnapshotChangeEventSource;
 import io.debezium.relational.SnapshotChangeRecordEmitter;
 import io.debezium.relational.Table;
 import io.debezium.relational.TableId;
+import io.debezium.schema.SchemaChangeEvent;
 import io.debezium.schema.TopicSelector;
 import io.debezium.util.Clock;
 import io.debezium.util.ColumnUtils;
@@ -57,16 +58,23 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Types;
 import java.time.Duration;
-import java.util.Calendar;
+import java.util.*;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static com.ververica.cdc.connectors.mysql.debezium.DebeziumUtils.currentBinlogOffset;
 
-/** Task to read snapshot split of table. */
+/**
+ * Task to read snapshot split of table.
+ */
 public class MySqlSnapshotSplitReadTask extends AbstractSnapshotChangeEventSource {
 
     private static final Logger LOG = LoggerFactory.getLogger(MySqlSnapshotSplitReadTask.class);
 
-    /** Interval for showing a log statement with the progress while scanning a single table. */
+    /**
+     * Interval for showing a log statement with the progress while scanning a single table.
+     */
     private static final Duration LOG_INTERVAL = Duration.ofMillis(10_000);
 
     private final MySqlConnectorConfig connectorConfig;
@@ -78,6 +86,7 @@ public class MySqlSnapshotSplitReadTask extends AbstractSnapshotChangeEventSourc
     private final MySqlOffsetContext offsetContext;
     private final TopicSelector<TableId> topicSelector;
     private final SnapshotProgressListener snapshotProgressListener;
+    private final List<SchemaChangeEvent> schemaEvents = new ArrayList<>();
 
     public MySqlSnapshotSplitReadTask(
             MySqlConnectorConfig connectorConfig,
@@ -130,6 +139,7 @@ public class MySqlSnapshotSplitReadTask extends AbstractSnapshotChangeEventSourc
         final RelationalSnapshotChangeEventSource.RelationalSnapshotContext ctx =
                 (RelationalSnapshotChangeEventSource.RelationalSnapshotContext) snapshotContext;
         ctx.offset = offsetContext;
+
         final SignalEventDispatcher signalEventDispatcher =
                 new SignalEventDispatcher(
                         offsetContext.getPartition(),
@@ -145,6 +155,16 @@ public class MySqlSnapshotSplitReadTask extends AbstractSnapshotChangeEventSourc
                 .setLowWatermark(lowWatermark);
         signalEventDispatcher.dispatchWatermarkEvent(
                 snapshotSplit, lowWatermark, SignalEventDispatcher.WatermarkKind.LOW);
+
+        if (snapshotSplit.isSnapshotSplit() && snapshotSplit.getSplitStart() == null && connectorConfig.includeSchemaChangeRecords()) {
+            LOG.info(
+                    "Snapshot step 1.1 - initial schemas for table {}",
+                    snapshotSplit.getTableId().table());
+            determineCapturedTables(ctx);
+            createSchemaEventsForTables(ctx, ctx.capturedSchemaTables, true);
+            createSchemaChangeEventsForTables(context, ctx, snapshottingTask);
+
+        }
 
         LOG.info("Snapshot step 2 - Snapshotting data");
         createDataEvents(ctx, snapshotSplit.getTableId());
@@ -193,7 +213,9 @@ public class MySqlSnapshotSplitReadTask extends AbstractSnapshotChangeEventSourc
         snapshotReceiver.completeSnapshot();
     }
 
-    /** Dispatches the data change events for the records of a single table. */
+    /**
+     * Dispatches the data change events for the records of a single table.
+     */
     private void createDataEventsForTable(
             RelationalSnapshotChangeEventSource.RelationalSnapshotContext snapshotContext,
             EventDispatcher.SnapshotReceiver snapshotReceiver,
@@ -216,16 +238,16 @@ public class MySqlSnapshotSplitReadTask extends AbstractSnapshotChangeEventSourc
                 selectSql);
 
         try (PreparedStatement selectStatement =
-                        StatementUtils.readTableSplitDataStatement(
-                                jdbcConnection,
-                                selectSql,
-                                snapshotSplit.getSplitStart() == null,
-                                snapshotSplit.getSplitEnd() == null,
-                                snapshotSplit.getSplitStart(),
-                                snapshotSplit.getSplitEnd(),
-                                snapshotSplit.getSplitKeyType().getFieldCount(),
-                                connectorConfig.getQueryFetchSize());
-                ResultSet rs = selectStatement.executeQuery()) {
+                     StatementUtils.readTableSplitDataStatement(
+                             jdbcConnection,
+                             selectSql,
+                             snapshotSplit.getSplitStart() == null,
+                             snapshotSplit.getSplitEnd() == null,
+                             snapshotSplit.getSplitStart(),
+                             snapshotSplit.getSplitEnd(),
+                             snapshotSplit.getSplitKeyType().getFieldCount(),
+                             connectorConfig.getQueryFetchSize());
+             ResultSet rs = selectStatement.executeQuery()) {
 
             ColumnUtils.ColumnArray columnArray = ColumnUtils.toArray(rs, table);
             long rows = 0;
@@ -368,7 +390,7 @@ public class MySqlSnapshotSplitReadTask extends AbstractSnapshotChangeEventSourc
 
         try {
             return MySqlValueConverters.containsZeroValuesInDatePart(
-                            (new String(b.getBytes(1, (int) (b.length())), "UTF-8")), column, table)
+                    (new String(b.getBytes(1, (int) (b.length())), "UTF-8")), column, table)
                     ? null
                     : rs.getTimestamp(fieldNo, Calendar.getInstance());
         } catch (UnsupportedEncodingException e) {
@@ -376,4 +398,160 @@ public class MySqlSnapshotSplitReadTask extends AbstractSnapshotChangeEventSourc
             throw new RuntimeException(e);
         }
     }
+
+    private void determineCapturedTables(RelationalSnapshotChangeEventSource.RelationalSnapshotContext ctx) throws Exception {
+//        Set<TableId> allTableIds = determineDataCollectionsToBeSnapshotted(getAllTableIds(ctx)).collect(Collectors.toSet());
+
+        Set<TableId> capturedTables = new HashSet<>();
+        Set<TableId> capturedSchemaTables = new HashSet<>();
+        capturedTables.add(this.snapshotSplit.getTableId());
+        capturedSchemaTables.add(this.snapshotSplit.getTableId());
+//        for (TableId tableId : allTableIds) {
+//            if (connectorConfig.getTableFilters().eligibleDataCollectionFilter().isIncluded(tableId)) {
+//                LOG.trace("Adding table {} to the list of capture schema tables", tableId);
+//                capturedSchemaTables.add(tableId);
+//            }
+//            if (connectorConfig.getTableFilters().dataCollectionFilter().isIncluded(tableId)) {
+//                LOG.trace("Adding table {} to the list of captured tables", tableId);
+//                capturedTables.add(tableId);
+//            } else {
+//                LOG.trace("Ignoring table {} as it's not included in the filter configuration", tableId);
+//            }
+//        }
+        ctx.capturedTables = sort(capturedTables);
+        ctx.capturedSchemaTables = capturedSchemaTables
+                .stream()
+                .sorted()
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    protected Set<TableId> getAllTableIds(RelationalSnapshotChangeEventSource.RelationalSnapshotContext ctx) throws Exception {
+        // -------------------
+        // READ DATABASE NAMES
+        // -------------------
+        // Get the list of databases ...
+        LOG.info("Read list of available databases");
+        final List<String> databaseNames = new ArrayList<>();
+        this.jdbcConnection.query("SHOW DATABASES", rs -> {
+            while (rs.next()) {
+                databaseNames.add(rs.getString(1));
+            }
+        });
+        LOG.info("\t list of available databases is: {}", databaseNames);
+
+        // ----------------
+        // READ TABLE NAMES
+        // ----------------
+        // Get the list of table IDs for each database. We can't use a prepared statement with MySQL, so we have to
+        // build the SQL statement each time. Although in other cases this might lead to SQL injection, in our case
+        // we are reading the database names from the database and not taking them from the user ...
+        LOG.info("Read list of available tables in each database");
+        final Set<TableId> tableIds = new HashSet<>();
+        final Set<String> readableDatabaseNames = new HashSet<>();
+        for (String dbName : databaseNames) {
+            try {
+                // MySQL sometimes considers some local files as databases (see DBZ-164),
+                // so we will simply try each one and ignore the problematic ones ...
+                this.jdbcConnection.query("SHOW FULL TABLES IN " + quote(dbName) + " where Table_Type = 'BASE TABLE'", rs -> {
+                    while (rs.next()) {
+                        TableId id = new TableId(dbName, null, rs.getString(1));
+                        tableIds.add(id);
+                    }
+                });
+                readableDatabaseNames.add(dbName);
+            } catch (SQLException e) {
+                // We were unable to execute the query or process the results, so skip this ...
+                LOG.warn("\t skipping database '{}' due to error reading tables: {}", dbName, e.getMessage());
+            }
+        }
+        final Set<String> includedDatabaseNames = readableDatabaseNames.stream().filter(this.connectorConfig.getTableFilters().databaseFilter()).collect(Collectors.toSet());
+        LOG.info("\tsnapshot continuing with database(s): {}", includedDatabaseNames);
+        return tableIds;
+    }
+
+    private String quote(String dbOrTableName) {
+        return "`" + dbOrTableName + "`";
+    }
+
+    private String quote(TableId id) {
+        return quote(id.catalog()) + "." + quote(id.table());
+    }
+
+    private Set<TableId> sort(Set<TableId> capturedTables) throws Exception {
+        String tableIncludeList = connectorConfig.tableIncludeList();
+        if (tableIncludeList != null) {
+            return Strings.listOfRegex(tableIncludeList, Pattern.CASE_INSENSITIVE)
+                    .stream()
+                    .flatMap(pattern -> toTableIds(capturedTables, pattern))
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+        }
+        return capturedTables
+                .stream()
+                .sorted()
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private Stream<TableId> toTableIds(Set<TableId> tableIds, Pattern pattern) {
+        return tableIds
+                .stream()
+                .filter(tid -> pattern.asPredicate().test(tid.toString()))
+                .sorted();
+    }
+
+    void createSchemaEventsForTables(RelationalSnapshotChangeEventSource.RelationalSnapshotContext snapshotContext, final Collection<TableId> tablesToRead, final boolean firstPhase) throws SQLException {
+        for (TableId tableId : tablesToRead) {
+            jdbcConnection.query("SHOW CREATE TABLE " + quote(tableId), rs -> {
+                if (rs.next()) {
+                    addSchemaEvent(snapshotContext, tableId.catalog(), rs.getString(2));
+                }
+            });
+        }
+    }
+
+    private void addSchemaEvent(RelationalSnapshotChangeEventSource.RelationalSnapshotContext snapshotContext, String database, String ddl) {
+        schemaEvents.addAll(databaseSchema.parseSnapshotDdl(ddl, database, (MySqlOffsetContext) snapshotContext.offset,
+                clock.currentTimeAsInstant()));
+    }
+
+    protected void createSchemaChangeEventsForTables(ChangeEventSourceContext sourceContext,
+                                                     RelationalSnapshotChangeEventSource.RelationalSnapshotContext snapshotContext, SnapshottingTask snapshottingTask)
+            throws Exception {
+        tryStartingSnapshot(snapshotContext);
+
+        for (Iterator<SchemaChangeEvent> i = schemaEvents.iterator(); i.hasNext(); ) {
+            final SchemaChangeEvent event = i.next();
+//            if (!sourceContext.isRunning()) {
+//                throw new InterruptedException("Interrupted while processing event " + event);
+//            }
+
+            if (databaseSchema.skipSchemaChangeEvent(event)) {
+                continue;
+            }
+
+            LOG.debug("Processing schema event {}", event);
+//            final TableId tableId = event.getTables().isEmpty() ? null : event.getTables().iterator().next().id();
+            snapshotContext.offset.event(this.snapshotSplit.getTableId(), clock.currentTime());
+
+//            // If data are not snapshotted then the last schema change must set last snapshot flag
+//            if (!snapshottingTask.snapshotData() && !i.hasNext()) {
+//                lastSnapshotRecord(snapshotContext);
+//            }
+            dispatcher.dispatchSchemaChangeEvent(this.snapshotSplit.getTableId(), (receiver) -> receiver.schemaChangeEvent(event));
+        }
+
+        // Make schema available for snapshot source
+        databaseSchema.tableIds().forEach(x -> snapshotContext.tables.overwriteTable(databaseSchema.tableFor(x)));
+    }
+
+    protected void tryStartingSnapshot(RelationalSnapshotChangeEventSource.RelationalSnapshotContext snapshotContext) {
+        if (!snapshotContext.offset.isSnapshotRunning()) {
+            snapshotContext.offset.preSnapshotStart();
+        }
+    }
+
+//    protected void lastSnapshotRecord(RelationalSnapshotChangeEventSource.RelationalSnapshotContext snapshotContext) {
+//        if (delayedSchemaSnapshotTables.isEmpty()) {
+//            snapshotContext.offset.markLastSnapshotRecord();
+//        }
+//    }
 }

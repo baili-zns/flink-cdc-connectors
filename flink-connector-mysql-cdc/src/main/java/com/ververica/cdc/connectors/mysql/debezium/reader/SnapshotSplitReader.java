@@ -232,12 +232,14 @@ public class SnapshotSplitReader implements DebeziumReader<SourceRecord, MySqlSp
             // data output: [low watermark event][normalized events][high watermark event]
             boolean reachBinlogEnd = false;
             final List<SourceRecord> sourceRecords = new ArrayList<>();
-            Map<TableId, TableChanges.TableChange> tableSchemas =
-                    this.currentSnapshotSplit.getTableSchemas();
+            TableChanges.TableChange tableChange = this.currentSnapshotSplit.getTableSchemas().get(this.currentSnapshotSplit.getTableId());
+//            Map<TableId, TableChanges.TableChange> tableSchemas =
+//                    (Map<TableId, TableChanges.TableChange>) tableChange;
+//            TableId tableId = this.currentSnapshotSplit.getTableId();
             while (!reachBinlogEnd) {
                 List<DataChangeEvent> batch = queue.poll();
                 for (DataChangeEvent event : batch) {
-                    sourceRecords.add(getSourceRecordWithRowType(event.getRecord(), tableSchemas));
+                    sourceRecords.add(getSourceRecordWithRowType(event.getRecord(), tableChange));
                     if (RecordUtils.isEndWatermarkEvent(event.getRecord())) {
                         reachBinlogEnd = true;
                         break;

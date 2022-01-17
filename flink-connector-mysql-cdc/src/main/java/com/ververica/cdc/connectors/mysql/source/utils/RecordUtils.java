@@ -418,10 +418,22 @@ public class RecordUtils {
         SourceRecordWithRowType sourceRecordWithSchema =
                 new SourceRecordWithRowType(sourceRecord);
 
-        if (isDataChangeRecord(sourceRecord)) {
+        if (isDataChangeRecord(sourceRecord) || isSchemaChangeEvent(sourceRecord)) {
             TableId tableId = getTableId(sourceRecord);
             TableChanges.TableChange tableChange = tableSchemas.get(tableId);
             Table table = tableChange.getTable();
+            sourceRecordWithSchema.setRowType(getRowTypeOfTable(table));
+            sourceRecordWithSchema.setPrimaryKeyColumnNames(table.primaryKeyColumnNames());
+        }
+        return sourceRecordWithSchema;
+    }
+
+
+    public static SourceRecordWithRowType getSourceRecordWithRowType(SourceRecord sourceRecord, TableChanges.TableChange tableSchema) {
+        SourceRecordWithRowType sourceRecordWithSchema =
+                new SourceRecordWithRowType(sourceRecord);
+        if (isDataChangeRecord(sourceRecord) || isSchemaChangeEvent(sourceRecord)) {
+            Table table = tableSchema.getTable();
             sourceRecordWithSchema.setRowType(getRowTypeOfTable(table));
             sourceRecordWithSchema.setPrimaryKeyColumnNames(table.primaryKeyColumnNames());
         }

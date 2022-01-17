@@ -119,6 +119,7 @@ public class MySqlTypeUtils {
             case VARCHAR:
                 return DataTypes.VARCHAR(column.length());
             case TEXT:
+            case JSON:
                 return DataTypes.STRING();
             case BINARY:
                 return DataTypes.BINARY(column.length());

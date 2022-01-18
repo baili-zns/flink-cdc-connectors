@@ -19,6 +19,7 @@
 package com.ververica.cdc.connectors.mysql.source.reader;
 
 import com.ververica.cdc.connectors.mysql.source.split.MySqlSnapshotSplit;
+import io.debezium.relational.TableId;
 import org.apache.flink.api.connector.source.SourceOutput;
 import org.apache.flink.connector.base.source.reader.RecordEmitter;
 import org.apache.flink.runtime.operators.shipping.OutputCollector;
@@ -35,6 +36,9 @@ import io.debezium.relational.history.TableChanges;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.HashSet;
+import java.util.Set;
 
 import static com.ververica.cdc.connectors.mysql.source.utils.RecordUtils.*;
 
@@ -57,6 +61,8 @@ public final class MySqlRecordEmitter<T>
     private final boolean generateSchemaRowTypes;
     private final OutputCollector<T> outputCollector;
 
+    private final Set<TableId> tableIdSet;
+
     public MySqlRecordEmitter(
             DebeziumDeserializationSchema<T> debeziumDeserializationSchema,
             MySqlSourceReaderMetrics sourceReaderMetrics,
@@ -74,6 +80,7 @@ public final class MySqlRecordEmitter<T>
         this.includeSchemaChanges = includeSchemaChanges;
         this.outputCollector = new OutputCollector<>();
         this.generateSchemaRowTypes = generateSchemaRowTypes;
+        this.tableIdSet = new HashSet<>();
     }
 
     @Override
@@ -103,13 +110,12 @@ public final class MySqlRecordEmitter<T>
             if (splitState.isBinlogSplitState()) {
                 BinlogOffset position = getBinlogPosition(element);
                 splitState.asBinlogSplitState().setStartingOffset(position);
-            } else if (generateSchemaRowTypes && splitState.isSnapshotSplitState()) {
-                if (Boolean.FALSE.equals(splitState.asSnapshotSplitState().getSchemaRecorded()) && Boolean.TRUE.equals(splitState.asSnapshotSplitState().getFirstSplit())) {
-                    MySqlSnapshotSplit mySqlSnapshotSplit = splitState.toMySqlSplit().asSnapshotSplit();
-                    splitState.asSnapshotSplitState().setSchemaRecorded(true);
-                    TableChanges.TableChange tableChange = mySqlSnapshotSplit.getTableSchemas().get(mySqlSnapshotSplit.getTableId());
-                    emitElement(getSourceRecordWithRowType(tableChange), output);
-                }
+            } else if (generateSchemaRowTypes && splitState.isSnapshotSplitState() && !tableIdSet.contains(splitState.toMySqlSplit().asSnapshotSplit().getTableId())) {
+                MySqlSnapshotSplit mySqlSnapshotSplit = splitState.toMySqlSplit().asSnapshotSplit();
+                TableId tableId = mySqlSnapshotSplit.getTableId();
+                tableIdSet.add(tableId);
+                TableChanges.TableChange tableChange = mySqlSnapshotSplit.getTableSchemas().get(tableId);
+                emitElement(getSourceRecordWithRowType(tableChange), output);
             }
             reportMetrics(element);
             emitElement(element, output);

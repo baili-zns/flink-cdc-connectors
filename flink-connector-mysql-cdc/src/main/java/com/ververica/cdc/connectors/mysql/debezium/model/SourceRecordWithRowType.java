@@ -13,6 +13,25 @@ import java.util.List;
  * @create: 2022-01-13 15:15
  */
 public class SourceRecordWithRowType extends SourceRecord {
+    private String dbName;
+    private String tableName;
+
+    public String getDbName() {
+        return dbName;
+    }
+
+    public void setDbName(String dbName) {
+        this.dbName = dbName;
+    }
+
+    public String getTableName() {
+        return tableName;
+    }
+
+    public void setTableName(String tableName) {
+        this.tableName = tableName;
+    }
+
     private RowType rowType;
 
     private List<String> primaryKeyColumnNames;
@@ -69,6 +88,11 @@ public class SourceRecordWithRowType extends SourceRecord {
 
     @Override
     public String toString() {
-        return "SourceRecordWithRowType{" + "rowType=" + rowType + "} " + super.toString();
+        return "SourceRecordWithRowType{" +
+                "dbName='" + dbName + '\'' +
+                ", tableName='" + tableName + '\'' +
+                ", rowType=" + rowType +
+                ", primaryKeyColumnNames=" + primaryKeyColumnNames +
+                '}' + super.toString();
     }
 }

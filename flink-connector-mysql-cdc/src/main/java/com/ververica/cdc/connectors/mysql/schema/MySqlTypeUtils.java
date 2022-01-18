@@ -22,8 +22,12 @@ import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.types.DataType;
 
 import io.debezium.relational.Column;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-/** Utilities for converting from MySQL types to Flink types. */
+/**
+ * Utilities for converting from MySQL types to Flink types.
+ */
 public class MySqlTypeUtils {
 
     // ------ MySQL Type ------
@@ -66,8 +70,11 @@ public class MySqlTypeUtils {
     private static final String ENUM = "ENUM";
     private static final String GEOMETRY = "GEOMETRY";
     private static final String UNKNOWN = "UNKNOWN";
+    private static final Logger LOG = LoggerFactory.getLogger(MySqlTypeUtils.class);
 
-    /** Returns a corresponding Flink data type from a debezium {@link Column}. */
+    /**
+     * Returns a corresponding Flink data type from a debezium {@link Column}.
+     */
     public static DataType fromDbzColumn(Column column) {
         DataType dataType = convertFromColumn(column);
         if (column.isOptional()) {
@@ -117,9 +124,9 @@ public class MySqlTypeUtils {
             case CHAR:
                 return DataTypes.CHAR(column.length());
             case VARCHAR:
-                return DataTypes.VARCHAR(column.length());
+                return DataTypes.VARCHAR(column.length() > 0 ? column.length() : 1);
+//                return DataTypes.VARCHAR(column.length());
             case TEXT:
-            case JSON:
                 return DataTypes.STRING();
             case BINARY:
                 return DataTypes.BINARY(column.length());
@@ -127,9 +134,13 @@ public class MySqlTypeUtils {
                 return DataTypes.VARBINARY(column.length());
             case BLOB:
                 return DataTypes.BYTES();
+            case JSON:
+            case BIT:
+            case LONGTEXT:
             default:
-                throw new UnsupportedOperationException(
-                        String.format("Don't support MySQL type '%s' yet.", typeName));
+                LOG.warn(String.format("Don't support MySQL type '%s' yet. Using STRING instead.", typeName));
+                return DataTypes.STRING();
+//                throw new UnsupportedOperationException(String.format("Don't support MySQL type '%s' yet.", typeName));
         }
     }
 }

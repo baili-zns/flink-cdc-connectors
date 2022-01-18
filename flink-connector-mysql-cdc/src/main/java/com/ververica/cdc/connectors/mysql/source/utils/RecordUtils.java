@@ -444,6 +444,8 @@ public class RecordUtils {
         SourceRecordWithRowType sourceRecordWithSchema =
                 new SourceRecordWithRowType();
         Table table = tableSchema.getTable();
+        sourceRecordWithSchema.setDbName(tableSchema.getId().catalog());
+        sourceRecordWithSchema.setTableName(tableSchema.getId().table());
         sourceRecordWithSchema.setRowType(getRowTypeOfTable(table));
         sourceRecordWithSchema.setPrimaryKeyColumnNames(table.primaryKeyColumnNames());
         return sourceRecordWithSchema;

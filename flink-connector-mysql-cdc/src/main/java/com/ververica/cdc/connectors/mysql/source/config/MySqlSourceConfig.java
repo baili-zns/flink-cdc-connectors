@@ -58,6 +58,7 @@ public class MySqlSourceConfig implements Serializable {
     private final double distributionFactorUpper;
     private final double distributionFactorLower;
     private final boolean includeSchemaChanges;
+    private final boolean includeRowTypesWithData;
     private final boolean generateSchemaRowTypes;
 
     // --------------------------------------------------------------------------------------------
@@ -89,7 +90,7 @@ public class MySqlSourceConfig implements Serializable {
             Properties dbzProperties) {
 
 
-        this(hostname, port, username, password, databaseList, tableList, serverIdRange, startupOptions, splitSize, splitMetaGroupSize, fetchSize, serverTimeZone, connectTimeout, connectMaxRetries, connectionPoolSize, distributionFactorUpper, distributionFactorLower, includeSchemaChanges, false, dbzProperties);
+        this(hostname, port, username, password, databaseList, tableList, serverIdRange, startupOptions, splitSize, splitMetaGroupSize, fetchSize, serverTimeZone, connectTimeout, connectMaxRetries, connectionPoolSize, distributionFactorUpper, distributionFactorLower, includeSchemaChanges, false, false, dbzProperties);
 
     }
 
@@ -112,6 +113,7 @@ public class MySqlSourceConfig implements Serializable {
             double distributionFactorUpper,
             double distributionFactorLower,
             boolean includeSchemaChanges,
+            boolean includeRowTypesWithData,
             boolean generateSchemaRowTypes,
             Properties dbzProperties) {
         this.hostname = checkNotNull(hostname);
@@ -135,6 +137,7 @@ public class MySqlSourceConfig implements Serializable {
         this.dbzProperties = checkNotNull(dbzProperties);
         this.dbzConfiguration = Configuration.from(dbzProperties);
         this.dbzMySqlConfig = new MySqlConnectorConfig(dbzConfiguration);
+        this.includeRowTypesWithData = includeRowTypesWithData;
         this.generateSchemaRowTypes = generateSchemaRowTypes;
     }
 
@@ -209,6 +212,10 @@ public class MySqlSourceConfig implements Serializable {
 
     public boolean isIncludeSchemaChanges() {
         return includeSchemaChanges;
+    }
+
+    public boolean isIncludeRowTypesWithData() {
+        return includeRowTypesWithData;
     }
 
     public boolean generateSchemaRowTypes() {

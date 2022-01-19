@@ -22,7 +22,6 @@ import com.ververica.cdc.connectors.mysql.source.split.MySqlSnapshotSplit;
 import io.debezium.relational.TableId;
 import org.apache.flink.api.connector.source.SourceOutput;
 import org.apache.flink.connector.base.source.reader.RecordEmitter;
-import org.apache.flink.runtime.operators.shipping.OutputCollector;
 import org.apache.flink.util.Collector;
 
 import com.ververica.cdc.connectors.mysql.source.metrics.MySqlSourceReaderMetrics;
@@ -59,6 +58,7 @@ public final class MySqlRecordEmitter<T>
     private final MySqlSourceReaderMetrics sourceReaderMetrics;
     private final boolean includeSchemaChanges;
     private final boolean generateSchemaRowTypes;
+    private final boolean includeRowTypesWithData;
     private final OutputCollector<T> outputCollector;
 
     private final Set<TableId> tableIdSet;
@@ -75,9 +75,19 @@ public final class MySqlRecordEmitter<T>
             MySqlSourceReaderMetrics sourceReaderMetrics,
             boolean includeSchemaChanges,
             boolean generateSchemaRowTypes) {
+        this(debeziumDeserializationSchema, sourceReaderMetrics, includeSchemaChanges, false, generateSchemaRowTypes);
+    }
+
+    public MySqlRecordEmitter(
+            DebeziumDeserializationSchema<T> debeziumDeserializationSchema,
+            MySqlSourceReaderMetrics sourceReaderMetrics,
+            boolean includeSchemaChanges,
+            boolean includeRowTypesWithData,
+            boolean generateSchemaRowTypes) {
         this.debeziumDeserializationSchema = debeziumDeserializationSchema;
         this.sourceReaderMetrics = sourceReaderMetrics;
         this.includeSchemaChanges = includeSchemaChanges;
+        this.includeRowTypesWithData = includeRowTypesWithData;
         this.outputCollector = new OutputCollector<>();
         this.generateSchemaRowTypes = generateSchemaRowTypes;
         this.tableIdSet = new HashSet<>();
@@ -99,23 +109,35 @@ public final class MySqlRecordEmitter<T>
             TableChanges changes = TABLE_CHANGE_SERIALIZER.deserialize(tableChanges, true);
             for (TableChanges.TableChange tableChange : changes) {
                 splitState.asBinlogSplitState().recordSchema(tableChange.getId(), tableChange);
-                if (generateSchemaRowTypes) {
-                    emitElement(getSourceRecordWithRowType(tableChange), output);
-                }
+//                if (generateSchemaRowTypes) {
+//                    emitElement(getSourceRecordWithRowType(tableChange), output);
+//                }
             }
             if (includeSchemaChanges) {
+                if (includeRowTypesWithData) {
+                    element = getSourceRecordWithRowType(element, splitState.toMySqlSplit().asBinlogSplit().getTableSchemas());
+                }
                 emitElement(element, output);
             }
         } else if (isDataChangeRecord(element)) {
             if (splitState.isBinlogSplitState()) {
                 BinlogOffset position = getBinlogPosition(element);
                 splitState.asBinlogSplitState().setStartingOffset(position);
-            } else if (generateSchemaRowTypes && splitState.isSnapshotSplitState() && !tableIdSet.contains(splitState.toMySqlSplit().asSnapshotSplit().getTableId())) {
-                MySqlSnapshotSplit mySqlSnapshotSplit = splitState.toMySqlSplit().asSnapshotSplit();
-                TableId tableId = mySqlSnapshotSplit.getTableId();
-                tableIdSet.add(tableId);
-                TableChanges.TableChange tableChange = mySqlSnapshotSplit.getTableSchemas().get(tableId);
-                emitElement(getSourceRecordWithRowType(tableChange), output);
+                if (includeRowTypesWithData) {
+                    element = getSourceRecordWithRowType(element, splitState.toMySqlSplit().asBinlogSplit().getTableSchemas());
+                }
+
+            } else if (splitState.isSnapshotSplitState()) {
+                if (includeRowTypesWithData) {
+                    element = getSourceRecordWithRowType(element, splitState.toMySqlSplit().asSnapshotSplit().getTableSchemas());
+                }
+                if (generateSchemaRowTypes && !tableIdSet.contains(splitState.toMySqlSplit().asSnapshotSplit().getTableId())) {
+                    MySqlSnapshotSplit mySqlSnapshotSplit = splitState.toMySqlSplit().asSnapshotSplit();
+                    TableId tableId = mySqlSnapshotSplit.getTableId();
+                    tableIdSet.add(tableId);
+                    TableChanges.TableChange tableChange = mySqlSnapshotSplit.getTableSchemas().get(tableId);
+                    emitElement(getSourceRecordWithRowType(tableChange), output);
+                }
             }
             reportMetrics(element);
             emitElement(element, output);

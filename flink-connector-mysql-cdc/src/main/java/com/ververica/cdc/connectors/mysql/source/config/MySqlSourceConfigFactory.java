@@ -70,6 +70,7 @@ public class MySqlSourceConfigFactory implements Serializable {
     private double distributionFactorLower =
             SPLIT_KEY_EVEN_DISTRIBUTION_FACTOR_LOWER_BOUND.defaultValue();
     private boolean includeSchemaChanges = false;
+    private boolean includeRowTypesWithData = false;
     private boolean generateSchemaRowTypes = false;
     private Properties dbzProperties;
 
@@ -227,6 +228,14 @@ public class MySqlSourceConfigFactory implements Serializable {
     /**
      * Whether the {@link MySqlSource} should output the schema changes or not.
      */
+    public MySqlSourceConfigFactory includeRowTypesWithData(boolean includeRowTypesWithData) {
+        this.includeRowTypesWithData = includeRowTypesWithData;
+        return this;
+    }
+
+    /**
+     * Whether the {@link MySqlSource} should output the schema changes or not.
+     */
     public MySqlSourceConfigFactory generateSchemaRowTypes(boolean generateSchemaRowTypes) {
         this.generateSchemaRowTypes = generateSchemaRowTypes;
         return this;
@@ -334,6 +343,7 @@ public class MySqlSourceConfigFactory implements Serializable {
                 distributionFactorUpper,
                 distributionFactorLower,
                 includeSchemaChanges,
+                includeRowTypesWithData,
                 generateSchemaRowTypes,
                 props);
     }

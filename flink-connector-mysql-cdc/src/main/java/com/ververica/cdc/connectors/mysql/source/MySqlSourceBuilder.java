@@ -189,6 +189,11 @@ public class MySqlSourceBuilder<T> {
         this.configFactory.includeSchemaChanges(includeSchemaChanges);
         return this;
     }
+/** Whether the {@link MySqlSource} should output the schema changes or not. */
+    public MySqlSourceBuilder<T> includeRowTypesWithData(boolean includeRowTypesWithData) {
+        this.configFactory.includeRowTypesWithData(includeRowTypesWithData);
+        return this;
+    }
 
     /** Whether the {@link MySqlSource} should output the schema changes or not. */
     public MySqlSourceBuilder<T> generateSchemaRowTypes(boolean generateSchemaRowTypes) {

@@ -142,6 +142,7 @@ public class MySqlSource<T>
                         deserializationSchema,
                         sourceReaderMetrics,
                         sourceConfig.isIncludeSchemaChanges(),
+                        sourceConfig.isIncludeRowTypesWithData(),
                         sourceConfig.generateSchemaRowTypes()),
                 readerContext.getConfiguration(),
                 readerContext,

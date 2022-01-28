@@ -422,6 +422,8 @@ public class RecordUtils {
             TableId tableId = getTableId(sourceRecord);
             TableChanges.TableChange tableChange = tableSchemas.get(tableId);
             Table table = tableChange.getTable();
+            sourceRecordWithSchema.setTableName(tableId.table());
+            sourceRecordWithSchema.setDbName(tableId.catalog());
             sourceRecordWithSchema.setRowType(getRowTypeOfTable(table));
             sourceRecordWithSchema.setPrimaryKeyColumnNames(table.primaryKeyColumnNames());
         }

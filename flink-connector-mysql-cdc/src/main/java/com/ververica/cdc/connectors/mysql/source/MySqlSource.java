@@ -31,6 +31,7 @@ import org.apache.flink.api.java.typeutils.ResultTypeQueryable;
 import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
 import org.apache.flink.connector.base.source.reader.synchronization.FutureCompletingBlockingQueue;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
+import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.util.FlinkRuntimeException;
 
 import com.ververica.cdc.connectors.mysql.MySqlValidator;
@@ -48,6 +49,7 @@ import com.ververica.cdc.connectors.mysql.source.enumerator.MySqlSourceEnumerato
 import com.ververica.cdc.connectors.mysql.source.metrics.MySqlSourceReaderMetrics;
 import com.ververica.cdc.connectors.mysql.source.reader.MySqlRecordEmitter;
 import com.ververica.cdc.connectors.mysql.source.reader.MySqlSourceReader;
+import com.ververica.cdc.connectors.mysql.source.reader.MySqlSourceReaderContext;
 import com.ververica.cdc.connectors.mysql.source.reader.MySqlSplitReader;
 import com.ververica.cdc.connectors.mysql.source.split.MySqlSplit;
 import com.ververica.cdc.connectors.mysql.source.split.MySqlSplitSerializer;
@@ -57,6 +59,7 @@ import io.debezium.jdbc.JdbcConnection;
 import io.debezium.relational.TableId;
 import org.apache.kafka.connect.source.SourceRecord;
 
+import java.lang.reflect.Method;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -70,12 +73,12 @@ import static com.ververica.cdc.connectors.mysql.debezium.DebeziumUtils.openJdbc
  * <pre>
  *     1. The source supports parallel capturing table change.
  *     2. The source supports checkpoint in split level when read snapshot data.
- *     3. The source does need apply any lock of MySQL.
+ *     3. The source doesn't need apply any lock of MySQL.
  * </pre>
  *
  * <pre>{@code
  * MySqlSource
- *     .<RowData>builder()
+ *     .<String>builder()
  *     .hostname("localhost")
  *     .port(3306)
  *     .databaseList("mydb")
@@ -117,6 +120,10 @@ public class MySqlSource<T>
         this.deserializationSchema = deserializationSchema;
     }
 
+    public MySqlSourceConfigFactory getConfigFactory() {
+        return configFactory;
+    }
+
     @Override
     public Boundedness getBoundedness() {
         return Boundedness.CONTINUOUS_UNBOUNDED;
@@ -130,11 +137,22 @@ public class MySqlSource<T>
                 configFactory.createConfig(readerContext.getIndexOfSubtask());
         FutureCompletingBlockingQueue<RecordsWithSplitIds<SourceRecord>> elementsQueue =
                 new FutureCompletingBlockingQueue<>();
+
+        final Method metricGroupMethod = readerContext.getClass().getMethod("metricGroup");
+        metricGroupMethod.setAccessible(true);
+        final MetricGroup metricGroup = (MetricGroup) metricGroupMethod.invoke(readerContext);
+
         final MySqlSourceReaderMetrics sourceReaderMetrics =
-                new MySqlSourceReaderMetrics(readerContext.metricGroup());
+                new MySqlSourceReaderMetrics(metricGroup);
         sourceReaderMetrics.registerMetrics();
+        MySqlSourceReaderContext mySqlSourceReaderContext =
+                new MySqlSourceReaderContext(readerContext);
         Supplier<MySqlSplitReader> splitReaderSupplier =
-                () -> new MySqlSplitReader(sourceConfig, readerContext.getIndexOfSubtask());
+                () ->
+                        new MySqlSplitReader(
+                                sourceConfig,
+                                readerContext.getIndexOfSubtask(),
+                                mySqlSourceReaderContext);
         return new MySqlSourceReader<>(
                 elementsQueue,
                 splitReaderSupplier,
@@ -145,7 +163,7 @@ public class MySqlSource<T>
                         sourceConfig.isIncludeRowTypesWithData(),
                         sourceConfig.generateSchemaRowTypes()),
                 readerContext.getConfiguration(),
-                readerContext,
+                mySqlSourceReaderContext,
                 sourceConfig);
     }
 

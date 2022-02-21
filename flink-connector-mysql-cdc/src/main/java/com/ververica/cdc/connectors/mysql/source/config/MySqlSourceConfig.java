@@ -33,9 +33,7 @@ import java.util.Properties;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-/**
- * A MySql Source configuration which is used by {@link MySqlSource}.
- */
+/** A MySql Source configuration which is used by {@link MySqlSource}. */
 public class MySqlSourceConfig implements Serializable {
     private static final long serialVersionUID = 1L;
 
@@ -45,8 +43,7 @@ public class MySqlSourceConfig implements Serializable {
     private final String password;
     private final List<String> databaseList;
     private final List<String> tableList;
-    @Nullable
-    private final ServerIdRange serverIdRange;
+    @Nullable private final ServerIdRange serverIdRange;
     private final StartupOptions startupOptions;
     private final int splitSize;
     private final int splitMetaGroupSize;
@@ -58,8 +55,7 @@ public class MySqlSourceConfig implements Serializable {
     private final double distributionFactorUpper;
     private final double distributionFactorLower;
     private final boolean includeSchemaChanges;
-    private final boolean includeRowTypesWithData;
-    private final boolean generateSchemaRowTypes;
+    private final boolean scanNewlyAddedTableEnabled;
 
     // --------------------------------------------------------------------------------------------
     // Debezium Configurations
@@ -87,6 +83,7 @@ public class MySqlSourceConfig implements Serializable {
             double distributionFactorUpper,
             double distributionFactorLower,
             boolean includeSchemaChanges,
+            boolean scanNewlyAddedTableEnabled,
             Properties dbzProperties) {
 
 
@@ -134,6 +131,7 @@ public class MySqlSourceConfig implements Serializable {
         this.distributionFactorUpper = distributionFactorUpper;
         this.distributionFactorLower = distributionFactorLower;
         this.includeSchemaChanges = includeSchemaChanges;
+        this.scanNewlyAddedTableEnabled = scanNewlyAddedTableEnabled;
         this.dbzProperties = checkNotNull(dbzProperties);
         this.dbzConfiguration = Configuration.from(dbzProperties);
         this.dbzMySqlConfig = new MySqlConnectorConfig(dbzConfiguration);
@@ -220,6 +218,10 @@ public class MySqlSourceConfig implements Serializable {
 
     public boolean generateSchemaRowTypes() {
         return generateSchemaRowTypes;
+    }
+
+    public boolean isScanNewlyAddedTableEnabled() {
+        return scanNewlyAddedTableEnabled;
     }
 
     public Properties getDbzProperties() {

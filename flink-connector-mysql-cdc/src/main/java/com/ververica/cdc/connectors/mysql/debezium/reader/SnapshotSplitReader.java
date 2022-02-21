@@ -130,7 +130,7 @@ public class SnapshotSplitReader implements DebeziumReader<SourceRecord, MySqlSp
                                         .getEndingOffset()
                                         .isAfter(backfillBinlogSplit.getStartingOffset());
                         if (!binlogBackfillRequired) {
-                            dispatchHighWatermark(backfillBinlogSplit);
+                            dispatchBinlogEndEvent(backfillBinlogSplit);
                             currentTaskRunning = false;
                             return;
                         }
@@ -202,7 +202,7 @@ public class SnapshotSplitReader implements DebeziumReader<SourceRecord, MySqlSp
                 backfillBinlogSplit);
     }
 
-    private void dispatchHighWatermark(MySqlBinlogSplit backFillBinlogSplit)
+    private void dispatchBinlogEndEvent(MySqlBinlogSplit backFillBinlogSplit)
             throws InterruptedException {
         final SignalEventDispatcher signalEventDispatcher =
                 new SignalEventDispatcher(

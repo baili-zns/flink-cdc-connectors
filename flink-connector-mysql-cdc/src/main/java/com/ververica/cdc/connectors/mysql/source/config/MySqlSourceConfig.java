@@ -56,6 +56,8 @@ public class MySqlSourceConfig implements Serializable {
     private final double distributionFactorLower;
     private final boolean includeSchemaChanges;
     private final boolean scanNewlyAddedTableEnabled;
+    private final boolean includeRowTypesWithData;
+    private final boolean generateSchemaRowTypes;
 
     // --------------------------------------------------------------------------------------------
     // Debezium Configurations
@@ -87,7 +89,7 @@ public class MySqlSourceConfig implements Serializable {
             Properties dbzProperties) {
 
 
-        this(hostname, port, username, password, databaseList, tableList, serverIdRange, startupOptions, splitSize, splitMetaGroupSize, fetchSize, serverTimeZone, connectTimeout, connectMaxRetries, connectionPoolSize, distributionFactorUpper, distributionFactorLower, includeSchemaChanges, false, false, dbzProperties);
+        this(hostname, port, username, password, databaseList, tableList, serverIdRange, startupOptions, splitSize, splitMetaGroupSize, fetchSize, serverTimeZone, connectTimeout, connectMaxRetries, connectionPoolSize, distributionFactorUpper, distributionFactorLower, includeSchemaChanges, false, false,scanNewlyAddedTableEnabled, dbzProperties);
 
     }
 
@@ -112,6 +114,7 @@ public class MySqlSourceConfig implements Serializable {
             boolean includeSchemaChanges,
             boolean includeRowTypesWithData,
             boolean generateSchemaRowTypes,
+            boolean scanNewlyAddedTableEnabled,
             Properties dbzProperties) {
         this.hostname = checkNotNull(hostname);
         this.port = port;
